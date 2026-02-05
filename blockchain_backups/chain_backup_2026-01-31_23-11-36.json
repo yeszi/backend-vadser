@@ -1,0 +1,41 @@
+[
+    {
+        "index": 1,
+        "timestamp": 1769857139.5779533,
+        "pdf_hash": "0",
+        "student_data": {
+            "nama": "System",
+            "nim": "000",
+            "prodi": "Root",
+            "ipk": "0.00"
+        },
+        "previous_hash": "0",
+        "hash": "29ff0739cb3e1012504461e5554f438222dc5e183da5e1ec7093042b7ae21347"
+    },
+    {
+        "index": 2,
+        "timestamp": 1769874032.7963877,
+        "pdf_hash": "fe89553f1c2ff9e16ad7a7f03e09af620bcc46989d77743f1a647657ef29b5d3",
+        "student_data": {
+            "nama": "GRAYESI SILITONGA",
+            "nim": "2201020130",
+            "prodi": "TEKNIK INFORMATIKA",
+            "ipk": "3.35"
+        },
+        "previous_hash": "e854b5889913e0f7c0d2809eb4b31e78fe178d3d2f45eb563dce80ae213b34ac",
+        "hash": "2fc7199e3ff0695fc4f1e40875f935969fd8f464db4e71bace01a42821e45b8a"
+    },
+    {
+        "index": 3,
+        "timestamp": 1769875896.396803,
+        "pdf_hash": "a7e12109e4bdce5a82a3a40f8e87043096ed4166179f3080e107a94b5700f72f",
+        "student_data": {
+            "nama": "MUHAMMAD CHANDRA RAMADHAN",
+            "nim": "2201020103",
+            "prodi": "TEKNIK INFORMATIKA",
+            "ipk": "3.81"
+        },
+        "previous_hash": "b12eafc0c38a20e5899c932c0d8066e6966482ec95f601f97e478c1273af5c2e",
+        "hash": "f40d3fc92aec4bff7031971b0e5338e13774a077acbfb1d611b6aa5423faaaa5"
+    }
+]
