@@ -1,0 +1,28 @@
+[
+    {
+        "index": 1,
+        "timestamp": 1770327316.3294785,
+        "pdf_hash": "0",
+        "student_data": {
+            "nama": "System Genesis",
+            "nim": "000",
+            "prodi": "Root",
+            "ipk": "0.00"
+        },
+        "previous_hash": "0",
+        "hash": "19c3c4d6937f6fe76cf29da964b237db56df0636cf475cd802224c62bd5c7d28"
+    },
+    {
+        "index": 2,
+        "timestamp": 1770327423.5456023,
+        "pdf_hash": "fe89553f1c2ff9e16ad7a7f03e09af620bcc46989d77743f1a647657ef29b5d3",
+        "student_data": {
+            "nama": "Grayesi Silitonga",
+            "nim": "2201020130",
+            "prodi": "Teknik Informatika",
+            "ipk": "3.35"
+        },
+        "previous_hash": "19c3c4d6937f6fe76cf29da964b237db56df0636cf475cd802224c62bd5c7d28",
+        "hash": "d74b7d7c024fe9f22fd8bfccd5ad4de9d784fbe003e85d861a3e3e6179f60a94"
+    }
+]
