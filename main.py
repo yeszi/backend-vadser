@@ -6,9 +6,22 @@ from datetime import datetime
 from time import time
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from dotenv import load_dotenv  # Import library untuk baca .env
+
+# --- KONFIGURASI KEAMANAN ---
+# 1. Load variabel dari file .env
+load_dotenv()
+
+# 2. Ambil username & password dari environment (bukan hardcode)
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+
+# Cek apakah file .env sudah dibuat dengan benar
+if not ADMIN_USERNAME or not ADMIN_PASSWORD:
+    print("⚠️  PERINGATAN: File .env belum dibuat atau kosong!")
+    print("   Silakan buat file .env dan isi ADMIN_USERNAME serta ADMIN_PASSWORD.")
 
 app = Flask(__name__)
-
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 DB_FILE = 'blockchain_data.json'
@@ -24,7 +37,6 @@ class Blockchain:
         if os.path.exists(DB_FILE):
             self.load_data()
         else:
-
             self.create_block(
                 pdf_hash='0', 
                 nama='System Genesis', 
@@ -38,12 +50,9 @@ class Blockchain:
         """
         Membuat blok baru dan menambahkannya ke rantai.
         """
-        #logika chaining
         if len(self.chain) > 0:
-
             previous_hash = self.chain[-1]['hash']
         else:
-
             previous_hash = '0'
 
         block = {
@@ -72,7 +81,6 @@ class Blockchain:
     def hash(block):
         """
         Membuat SHA-256 hash dari sebuah blok.
-        PENTING: Kita harus membuang key 'hash' jika ada, agar tidak terjadi circular logic.
         """
         block_copy = block.copy()
         
@@ -100,7 +108,6 @@ class Blockchain:
         Menyimpan rantai ke file JSON dan melakukan Backup otomatis.
         """
         try:
-
             with open(DB_FILE, 'w') as f:
                 json.dump(self.chain, f, indent=4)
 
@@ -145,7 +152,6 @@ class Blockchain:
                 with open(DB_FILE, 'w') as f:
                     json.dump(self.chain, f, indent=4)
             else:
-
                 self.chain = []
                 self.create_block('0', 'System', '000', 'Root', '0.00', save=True)
         except Exception as e:
@@ -160,7 +166,6 @@ class Blockchain:
 
     def is_nim_registered(self, nim_to_check):
         for block in self.chain:
-
             if block['pdf_hash'] == '0': continue
             if block['student_data']['nim'] == nim_to_check:
                 return True
@@ -173,7 +178,6 @@ class Blockchain:
         for i in range(1, len(self.chain)):
             current_block = self.chain[i]
             previous_block = self.chain[i-1]
-
 
             if current_block['previous_hash'] != previous_block['hash']:
                 print(f"Broken Link at Block {i}")
@@ -199,14 +203,19 @@ def index():
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
+    
+    # --- BAGIAN INI SUDAH AMAN ---
+    # Membandingkan input user dengan variabel dari .env
+    input_user = data.get('username')
+    input_pass = data.get('password')
 
-    if data.get('username') == "grayesi" and data.get('password') == "anakbaik":
+    if input_user == ADMIN_USERNAME and input_pass == ADMIN_PASSWORD:
         return jsonify({"success": True, "token": "dummy-jwt-token"}), 200
+    
     return jsonify({"success": False, "message": "Invalid Credentials"}), 401
 
 @app.route('/upload_ijazah', methods=['POST'])
 def upload_ijazah():
-
     if 'file' not in request.files: 
         return jsonify({'message': 'File PDF wajib diupload'}), 400
 
@@ -242,9 +251,7 @@ def verify_ijazah():
         return jsonify({'message': 'Upload file untuk verifikasi'}), 400
     
     file = request.files['file']
-    
     pdf_hash = blockchain.calculate_file_hash(file)
-    
     block = blockchain.find_block_by_file(pdf_hash)
 
     if block:
@@ -264,7 +271,6 @@ def verify_ijazah():
 @app.route('/chain', methods=['GET'])
 def get_chain():
     real_chain = [b for b in blockchain.chain if b['pdf_hash'] != '0']
-    
     is_valid = blockchain.check_integrity()
     
     return jsonify({
