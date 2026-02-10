@@ -1,3 +1,4 @@
 .env
+blokchain_data.json
 __pycache__/
 blockchain_backups/
