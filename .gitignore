@@ -1,4 +1,12 @@
 .env
+config.py
+instance/
+
 blokchain_data.json
-__pycache__/
 blockchain_backups/
+*.db
+*.sqlite3
+
+__pycache__/
+*.pyc
+*.pyo
