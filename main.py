@@ -1,65 +1,59 @@
 import hashlib
 import json
 import os
-import shutil
-from datetime import datetime
 from time import time
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
-from dotenv import load_dotenv  # Import library untuk baca .env
+from dotenv import load_dotenv
+from supabase import create_client, Client
 
+# --- 1. KONFIGURASI DAN KONEKSI DATABASE ---
 load_dotenv()
 
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+# Ambil URL dan Key dari Environment Variables (Vercel)
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-if not ADMIN_USERNAME or not ADMIN_PASSWORD:
-    print("⚠️  PERINGATAN: Environment Variables belum terbaca!")
-    print("   Pastikan sudah setting variables di Dashboard Railway.")
+# Inisialisasi Client Supabase
+supabase: Client = None
+try:
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        print("⚠️ Peringatan: Supabase Credential belum di-set di Environment Variable.")
+    else:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        print("✅ Berhasil terkoneksi ke Supabase Cloud")
+except Exception as e:
+    print(f"❌ Gagal koneksi Supabase: {e}")
+
+# Konfigurasi Admin
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
 
 app = Flask(__name__)
+# Aktifkan CORS agar frontend (jika ada) bisa akses
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-if os.path.exists('/app/data'):
-    print("running on railway volume")
-    BASE_DIR = '/app/data'
-else:
-    print("running on local storage")
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-DB_FILE = os.path.join(BASE_DIR, 'blockchain_data.json')
-BACKUP_DIR = os.path.join(BASE_DIR, 'blockchain_backups')
-
+# --- 2. KELAS BLOCKCHAIN ---
 class Blockchain:
     def __init__(self):
         self.chain = []
-        
-        # Pastikan folder backup dibuat di lokasi yang benar
-        if not os.path.exists(BACKUP_DIR):
-            os.makedirs(BACKUP_DIR)
+        # Saat server nyala, langsung tarik data dari Supabase
+        self.load_data()
 
-        if os.path.exists(DB_FILE):
-            self.load_data()
-        else:
-            # Buat Genesis Block jika file belum ada
-            self.create_block(
-                pdf_hash='0', 
-                nama='System Genesis', 
-                nim='000', 
-                prodi='Root', 
-                ipk='0.00', 
-                save=True
-            )
-
-    def create_block(self, pdf_hash, nama, nim, prodi, ipk, save=True):
+    def create_block(self, pdf_hash, nama, nim, prodi, ipk):
         """
-        Membuat blok baru dan menambahkannya ke rantai.
+        Membuat blok baru:
+        1. Hitung Hash
+        2. Simpan ke List (Memori)
+        3. Simpan ke Supabase (Database Permanen)
         """
         if len(self.chain) > 0:
             previous_hash = self.chain[-1]['hash']
         else:
             previous_hash = '0'
 
+        # Struktur Data (Sesuai Konsep JSON)
         block = {
             'index': len(self.chain) + 1,
             'timestamp': time(),
@@ -73,151 +67,124 @@ class Blockchain:
             'previous_hash': previous_hash
         }
 
+        # Hitung Hash SHA-256
         block['hash'] = self.hash(block)
 
+        # Simpan ke Memori Python
         self.chain.append(block)
 
-        if save: 
-            self.save_data()
+        # Simpan ke Cloud (Supabase) agar tidak hilang
+        self.save_block_to_db(block)
         
         return block
 
     @staticmethod
     def hash(block):
         """
-        Membuat SHA-256 hash dari sebuah blok.
+        Membuat SHA-256 hash dari blok.
+        PENTING: Kita hapus field 'id' (jika ada dari database) agar hash konsisten.
         """
         block_copy = block.copy()
         
-        if 'hash' in block_copy:
-            del block_copy['hash']
+        # Bersihkan field internal database yang tidak perlu di-hash
+        if 'id' in block_copy: del block_copy['id']
+        if 'hash' in block_copy: del block_copy['hash']
 
+        # Dump ke string JSON yang terurut (sort_keys=True)
         block_string = json.dumps(block_copy, sort_keys=True).encode()
         return hashlib.sha256(block_string).hexdigest()
 
     @staticmethod
     def calculate_file_hash(file_stream):
-        """
-        Menghitung SHA-256 dari file fisik (PDF).
-        """
+        """Menghitung SHA-256 dari file fisik PDF"""
         sha256_hash = hashlib.sha256()
-
         for byte_block in iter(lambda: file_stream.read(4096), b""):
             sha256_hash.update(byte_block)
-        
-        file_stream.seek(0)
+        file_stream.seek(0) # Reset pointer file ke awal
         return sha256_hash.hexdigest()
 
-    def save_data(self):
-        """
-        Menyimpan rantai ke file JSON dan melakukan Backup otomatis.
-        """
-        try:
-            with open(DB_FILE, 'w') as f:
-                json.dump(self.chain, f, indent=4)
-
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            backup_filename = os.path.join(BACKUP_DIR, f"chain_backup_{timestamp}.json")
-            shutil.copy2(DB_FILE, backup_filename)
-
-            self.cleanup_old_backups()
-            
-        except Exception as e:
-            print(f"Error saving data: {e}")
-
-    def cleanup_old_backups(self):
-        """Hapus file backup lama agar storage tidak penuh."""
-        try:
-            files = sorted(os.listdir(BACKUP_DIR))
-            if len(files) > 20:
-                for f in files[:-20]: 
-                    os.remove(os.path.join(BACKUP_DIR, f))
-        except Exception:
-            pass
+    def save_block_to_db(self, block):
+        """Mengirim data blok ke tabel Supabase"""
+        if supabase is not None:
+            try:
+                # Insert ke tabel 'chain'
+                supabase.table("chain").insert(block).execute()
+            except Exception as e:
+                print(f"Gagal menyimpan ke Supabase: {e}")
 
     def load_data(self):
-        """Load data dari JSON dengan fitur Auto-Recovery."""
-        try:
-            with open(DB_FILE, 'r') as f:
-                self.chain = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            print("⚠️ File utama rusak/hilang! Mencoba restore dari backup...")
-            self.recover_from_backup()
-
-    def recover_from_backup(self):
-        """Mencoba mengembalikan data dari file backup terakhir."""
-        try:
-            files = sorted(os.listdir(BACKUP_DIR))
-            if files:
-                last_backup = files[-1]
-                print(f"♻️ Merestore dari: {last_backup}")
-                with open(os.path.join(BACKUP_DIR, last_backup), 'r') as f:
-                    self.chain = json.load(f)
-
-                with open(DB_FILE, 'w') as f:
-                    json.dump(self.chain, f, indent=4)
-            else:
+        """Mengambil semua data blok dari Supabase saat aplikasi mulai"""
+        if supabase is not None:
+            try:
+                # Select semua data, urutkan berdasarkan index
+                response = supabase.table("chain").select("*").order("index").execute()
+                data = response.data
+                
+                if data:
+                    self.chain = data
+                else:
+                    # Jika database kosong, buat Genesis Block otomatis
+                    self.create_block('0', 'System Genesis', '000', 'Root', '0.00')
+            except Exception as e:
+                print(f"Error loading DB: {e}")
                 self.chain = []
-                self.create_block('0', 'System', '000', 'Root', '0.00', save=True)
-        except Exception as e:
-            print(f"Critical Error: {e}")
-            self.chain = []
 
     def find_block_by_file(self, pdf_hash):
+        """Mencari blok berdasarkan hash PDF"""
         for block in self.chain:
             if block.get('pdf_hash') == pdf_hash:
                 return block
         return None
 
     def is_nim_registered(self, nim_to_check):
+        """Mengecek apakah NIM sudah ada di blockchain"""
         for block in self.chain:
-            if block['pdf_hash'] == '0': continue
-            if block['student_data']['nim'] == nim_to_check:
+            if block['pdf_hash'] == '0': continue # Skip Genesis
+            # Akses nested json student_data
+            if block['student_data'].get('nim') == nim_to_check:
                 return True
         return False
 
     def check_integrity(self):
-        """
-        Memeriksa apakah rantai valid (Tamper-Proof Check).
-        """
+        """Validasi rantai blok (Anti-Tamper Check)"""
         for i in range(1, len(self.chain)):
-            current_block = self.chain[i]
-            previous_block = self.chain[i-1]
+            current = self.chain[i]
+            prev = self.chain[i-1]
 
-            if current_block['previous_hash'] != previous_block['hash']:
-                print(f"Broken Link at Block {i}")
+            # Cek 1: Link Hash Putus?
+            if current['previous_hash'] != prev['hash']: 
                 return False
-
-            recalculated_hash = self.hash(current_block)
-            if current_block['hash'] != recalculated_hash:
-                print(f"Data Modified at Block {i}")
-                return False
-                
+            
+            # Cek 2: Data Dimodifikasi? (Re-hash)
+            if current['hash'] != self.hash(current): 
+                return False     
         return True
 
+# Inisialisasi Objek Blockchain
 blockchain = Blockchain()
+
+
+# --- 3. ROUTES / API ENDPOINTS ---
 
 @app.route('/', methods=['GET'])
 def index():
     return jsonify({
-        "status": "Running",
-        "message": "Lightweight Blockchain System API is Active (Persistent Storage)"
+        "status": "Running on Vercel",
+        "storage": "Supabase Cloud Database",
+        "total_blocks": len(blockchain.chain),
+        "message": "Lightweight Blockchain System is Active"
     })
 
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
-    
-    input_user = data.get('username')
-    input_pass = data.get('password')
-
-    if input_user == ADMIN_USERNAME and input_pass == ADMIN_PASSWORD:
-        return jsonify({"success": True, "token": "dummy-jwt-token"}), 200
-    
+    if data.get('username') == ADMIN_USERNAME and data.get('password') == ADMIN_PASSWORD:
+        return jsonify({"success": True, "token": "dummy-token-access"}), 200
     return jsonify({"success": False, "message": "Invalid Credentials"}), 401
 
 @app.route('/upload_ijazah', methods=['POST'])
 def upload_ijazah():
+    # Validasi Input
     if 'file' not in request.files: 
         return jsonify({'message': 'File PDF wajib diupload'}), 400
 
@@ -230,14 +197,19 @@ def upload_ijazah():
     if not all([nama, nim, prodi, ipk]): 
         return jsonify({'message': 'Data mahasiswa tidak lengkap!'}), 400
 
+    # Refresh data dari cloud (penting utk Vercel Serverless)
+    blockchain.load_data() 
+
+    # Cek Duplikasi
     if blockchain.is_nim_registered(nim):
-        return jsonify({'message': f'NIM {nim} sudah terdaftar di Blockchain!'}), 403
+        return jsonify({'message': f'NIM {nim} sudah terdaftar di sistem!'}), 403
 
     pdf_hash = blockchain.calculate_file_hash(file)
 
     if blockchain.find_block_by_file(pdf_hash):
         return jsonify({'message': 'Dokumen ijazah ini sudah ada di sistem.'}), 400
 
+    # Buat Blok Baru & Simpan
     new_block = blockchain.create_block(pdf_hash, nama, nim, prodi, ipk)
 
     return jsonify({
@@ -249,11 +221,15 @@ def upload_ijazah():
 
 @app.route('/verify_ijazah', methods=['POST'])
 def verify_ijazah():
-    if 'file' not in request.files:
+    if 'file' not in request.files: 
         return jsonify({'message': 'Upload file untuk verifikasi'}), 400
     
     file = request.files['file']
     pdf_hash = blockchain.calculate_file_hash(file)
+    
+    # Refresh data agar dapat update terbaru
+    blockchain.load_data()
+    
     block = blockchain.find_block_by_file(pdf_hash)
 
     if block:
@@ -267,19 +243,39 @@ def verify_ijazah():
     else:
         return jsonify({
             'status': 'INVALID',
-            'message': 'Data TIDAK DITEMUKAN. Kemungkinan file palsu atau belum terdaftar.'
+            'message': 'Data TIDAK DITEMUKAN. File palsu atau belum terdaftar.'
         }), 404
 
 @app.route('/chain', methods=['GET'])
 def get_chain():
+    """Melihat seluruh rantai blok (JSON)"""
+    blockchain.load_data()
     real_chain = [b for b in blockchain.chain if b['pdf_hash'] != '0']
-    is_valid = blockchain.check_integrity()
     
     return jsonify({
-        'chain': real_chain[::-1], 
+        'chain': real_chain[::-1], # Urutkan dari yang terbaru
         'length': len(real_chain),
-        'integrity_status': is_valid
+        'integrity_status': blockchain.check_integrity()
     }), 200
 
+# --- FITUR TAMBAHAN KHUSUS SKRIPSI ---
+@app.route('/download_json', methods=['GET'])
+def download_json():
+    """
+    Endpoint untuk mendownload database dalam bentuk file JSON fisik.
+    Ini membuktikan bahwa sistem tetap berbasis JSON.
+    """
+    blockchain.load_data()
+    
+    # Konversi data memory ke string JSON
+    json_output = json.dumps(blockchain.chain, indent=4)
+    
+    return Response(
+        json_output,
+        mimetype="application/json",
+        headers={"Content-Disposition": "attachment;filename=blockchain_data.json"}
+    )
+
+# Handler untuk Vercel Serverless
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True)
