@@ -2,7 +2,7 @@
 config.py
 instance/
 
-blokchain_data.json
+blockchain_data.json
 blockchain_backups/
 *.db
 *.sqlite3
