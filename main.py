@@ -8,35 +8,40 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv  # Import library untuk baca .env
 
-# --- KONFIGURASI KEAMANAN ---
-# 1. Load variabel dari file .env
 load_dotenv()
 
-# 2. Ambil username & password dari environment (bukan hardcode)
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
-# Cek apakah file .env sudah dibuat dengan benar
 if not ADMIN_USERNAME or not ADMIN_PASSWORD:
-    print("⚠️  PERINGATAN: File .env belum dibuat atau kosong!")
-    print("   Silakan buat file .env dan isi ADMIN_USERNAME serta ADMIN_PASSWORD.")
+    print("⚠️  PERINGATAN: Environment Variables belum terbaca!")
+    print("   Pastikan sudah setting variables di Dashboard Railway.")
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-DB_FILE = 'blockchain_data.json'
-BACKUP_DIR = 'blockchain_backups'
+if os.path.exists('/app/data'):
+    print("running on railway volume")
+    BASE_DIR = '/app/data'
+else:
+    print("running on local storage")
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+DB_FILE = os.path.join(BASE_DIR, 'blockchain_data.json')
+BACKUP_DIR = os.path.join(BASE_DIR, 'blockchain_backups')
 
 class Blockchain:
     def __init__(self):
         self.chain = []
         
+        # Pastikan folder backup dibuat di lokasi yang benar
         if not os.path.exists(BACKUP_DIR):
             os.makedirs(BACKUP_DIR)
 
         if os.path.exists(DB_FILE):
             self.load_data()
         else:
+            # Buat Genesis Block jika file belum ada
             self.create_block(
                 pdf_hash='0', 
                 nama='System Genesis', 
@@ -112,7 +117,7 @@ class Blockchain:
                 json.dump(self.chain, f, indent=4)
 
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            backup_filename = f"{BACKUP_DIR}/chain_backup_{timestamp}.json"
+            backup_filename = os.path.join(BACKUP_DIR, f"chain_backup_{timestamp}.json")
             shutil.copy2(DB_FILE, backup_filename)
 
             self.cleanup_old_backups()
@@ -192,20 +197,17 @@ class Blockchain:
 
 blockchain = Blockchain()
 
-
 @app.route('/', methods=['GET'])
 def index():
     return jsonify({
         "status": "Running",
-        "message": "Lightweight Blockchain System API is Active"
+        "message": "Lightweight Blockchain System API is Active (Persistent Storage)"
     })
 
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
     
-    # --- BAGIAN INI SUDAH AMAN ---
-    # Membandingkan input user dengan variabel dari .env
     input_user = data.get('username')
     input_pass = data.get('password')
 
