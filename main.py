@@ -6,7 +6,6 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
-# --- 1. INISIALISASI ---
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -18,7 +17,6 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# --- 2. LOGIKA BLOCKCHAIN ---
 class Blockchain:
     def __init__(self):
         self.chain = []
@@ -27,7 +25,7 @@ class Blockchain:
     def load_data(self):
         """Tarik data terbaru dari Supabase Cloud"""
         try:
-            # Sesuaikan dengan nama tabel di Supabase kamu
+
             response = supabase.table("sertifikat_digital").select("*").order("id").execute()
             self.chain = response.data if response.data else []
             
@@ -75,14 +73,12 @@ class Blockchain:
         current_hash = self.calculate_hash(block_content)
         block_content['cert_hash'] = current_hash
         
-        # Simpan ke Supabase Cloud
         supabase.table("sertifikat_digital").insert(block_content).execute()
         self.load_data() 
         return current_hash
 
 blockchain = Blockchain()
 
-# --- 3. API ENDPOINTS ---
 
 @app.route('/login', methods=['POST'])
 def login():
