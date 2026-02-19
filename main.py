@@ -17,7 +17,6 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-
 class Blockchain:
     def __init__(self):
         self.chain = []
@@ -26,7 +25,7 @@ class Blockchain:
     def load_data(self):
         """Tarik data terbaru dari Supabase Cloud"""
         try:
-
+            # Mengambil data urut berdasarkan ID agar urutan blok benar
             response = supabase.table("sertifikat_digital").select("*").order("id").execute()
             self.chain = response.data if response.data else []
             
@@ -52,18 +51,12 @@ class Blockchain:
 
     @staticmethod
     def calculate_hash(block_data):
-        """
-        Menghash 6 Metadata + Previous Hash menggunakan SHA-256.
-        Inti dari integritas data (Anti-Tamper).
-        """
-
+        """Menghash 6 Metadata + Previous Hash menggunakan SHA-256"""
         encoded_block = json.dumps(block_data, sort_keys=True).encode()
-        return hashlib.sha256(encoded_block).hexdigest() [cite: 1]
+        [cite_start]return hashlib.sha256(encoded_block).hexdigest() [cite: 1]
 
     def add_block(self, metadata):
-        """
-        Proses pembuatan blok baru sesuai metadata dari Pak Hendra
-        """
+        """Proses pembuatan blok baru sesuai metadata dari Pak Hendra"""
         prev_hash = self.get_previous_hash()
         
         block_content = {
@@ -77,19 +70,19 @@ class Blockchain:
             "previous_hash": prev_hash
         }
         
-        current_hash = self.calculate_hash(block_content) [cite: 1]
+        [cite_start]current_hash = self.calculate_hash(block_content) [cite: 1]
         block_content['cert_hash'] = current_hash
         
         supabase.table("sertifikat_digital").insert(block_content).execute()
-        self.load_data() # Refresh memori lokal
+        self.load_data() 
         return current_hash
 
 blockchain = Blockchain()
 
+# --- API ENDPOINTS ---
 
 @app.route('/login', methods=['POST'])
 def login():
-    """Validasi Admin berdasarkan file .env"""
     data = request.json
     if data.get('username') == ADMIN_USERNAME and data.get('password') == ADMIN_PASSWORD:
         return jsonify({"success": True, "token": "access-granted-umrah"}), 200
@@ -97,9 +90,7 @@ def login():
 
 @app.route('/issue-sertifikat', methods=['POST'])
 def issue_sertifikat():
-    """Endpoint untuk Admin membuat sertifikat baru"""
     metadata = request.json
-    
     required = ['nama_event', 'lokasi_nama', 'latitude', 'longitude', 'waktu_mulai', 'keterangan', 'nama_peserta']
     if not all(k in metadata for k in required):
         return jsonify({"message": "Data metadata tidak lengkap!"}), 400
@@ -113,9 +104,7 @@ def issue_sertifikat():
 
 @app.route('/verify/<cert_hash>', methods=['GET'])
 def verify(cert_hash):
-    """Endpoint untuk Publik memverifikasi sertifikat lewat QR Code"""
-    blockchain.load_data() # Pastikan data paling update
-    
+    blockchain.load_data()
     match = next((b for b in blockchain.chain if b['cert_hash'] == cert_hash), None)
     
     if match:
@@ -130,6 +119,16 @@ def verify(cert_hash):
             "message": "Sertifikat TIDAK DITEMUKAN"
         }), 404
 
-if __name__ == '__main__':
 
+@app.route('/chain', methods=['GET'])
+def get_chain():
+    """Endpoint untuk melihat seluruh isi blockchain dalam format JSON"""
+    blockchain.load_data() # Tarik data terbaru sebelum ditampilkan
+    return jsonify({
+        "status": "success",
+        "length": len(blockchain.chain),
+        "chain": blockchain.chain[::-1] # Menampilkan dari yang paling baru di atas
+    }), 200
+
+if __name__ == '__main__':
     app.run(debug=True)
