@@ -6,17 +6,19 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
+# --- 1. INISIALISASI ---
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+# --- 2. LOGIKA BLOCKCHAIN ---
 class Blockchain:
     def __init__(self):
         self.chain = []
@@ -25,7 +27,7 @@ class Blockchain:
     def load_data(self):
         """Tarik data terbaru dari Supabase Cloud"""
         try:
-            # Mengambil data urut berdasarkan ID agar urutan blok benar
+            # Sesuaikan dengan nama tabel di Supabase kamu
             response = supabase.table("sertifikat_digital").select("*").order("id").execute()
             self.chain = response.data if response.data else []
             
@@ -53,7 +55,7 @@ class Blockchain:
     def calculate_hash(block_data):
         """Menghash 6 Metadata + Previous Hash menggunakan SHA-256"""
         encoded_block = json.dumps(block_data, sort_keys=True).encode()
-        [cite_start]return hashlib.sha256(encoded_block).hexdigest() [cite: 1]
+        return hashlib.sha256(encoded_block).hexdigest()
 
     def add_block(self, metadata):
         """Proses pembuatan blok baru sesuai metadata dari Pak Hendra"""
@@ -70,16 +72,17 @@ class Blockchain:
             "previous_hash": prev_hash
         }
         
-        [cite_start]current_hash = self.calculate_hash(block_content) [cite: 1]
+        current_hash = self.calculate_hash(block_content)
         block_content['cert_hash'] = current_hash
         
+        # Simpan ke Supabase Cloud
         supabase.table("sertifikat_digital").insert(block_content).execute()
         self.load_data() 
         return current_hash
 
 blockchain = Blockchain()
 
-# --- API ENDPOINTS ---
+# --- 3. API ENDPOINTS ---
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -119,15 +122,14 @@ def verify(cert_hash):
             "message": "Sertifikat TIDAK DITEMUKAN"
         }), 404
 
-
 @app.route('/chain', methods=['GET'])
 def get_chain():
     """Endpoint untuk melihat seluruh isi blockchain dalam format JSON"""
-    blockchain.load_data() # Tarik data terbaru sebelum ditampilkan
+    blockchain.load_data()
     return jsonify({
         "status": "success",
         "length": len(blockchain.chain),
-        "chain": blockchain.chain[::-1] # Menampilkan dari yang paling baru di atas
+        "chain": blockchain.chain[::-1]
     }), 200
 
 if __name__ == '__main__':
