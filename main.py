@@ -156,28 +156,11 @@ def home():
 
 @app.route('/login', methods=['POST'])
 def login():
-    try:
-        data = request.json
-        username = data.get('username')
-        password = data.get('password')
-        
-        if username == "grayesi" and password == "anakkeren":
-            return jsonify({
-                "success": True,
-                "token": "access-granted-umrah",
-                "message": "Login berhasil !"
-            }), 200
-        else:
-            return jsonify({
-                "success": False,
-                "message": "Salah , coba lagi"
-            }), 401
-            
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "message": str(e)
-        }), 500
+    data = request.json
+    if data.get('username') == ADMIN_USERNAME and data.get('password') == ADMIN_PASSWORD:
+        return jsonify({"success": True, "token": "access-granted-umrah"})
+    else:
+        return jsonify({"success": False, "message": "Username atau password salah"}), 401
 
 
 @app.route('/issue-sertifikat', methods=['POST'])
