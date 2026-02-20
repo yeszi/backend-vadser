@@ -156,49 +156,29 @@ def home():
 
 @app.route('/login', methods=['POST'])
 def login():
-    """
-    Endpoint untuk login admin
-    Request body: { "username": "...", "password": "..." }
-    Response: { "success": true, "token": "..." }
-    """
     try:
         data = request.json
         username = data.get('username')
         password = data.get('password')
         
-        print(f"🔑 Login attempt - Username: {username}")
-        
-        # Validasi input
-        if not username or not password:
-            return jsonify({
-                "success": False,
-                "message": "Username dan password wajib diisi"
-            }), 400
-        
-        # Cek kredensial
-        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
-            print("✅ Login successful")
+        if username == "grayesi" and password == "anakkeren":
             return jsonify({
                 "success": True,
                 "token": "access-granted-umrah",
-                "user": {
-                    "username": username,
-                    "role": "admin"
-                }
+                "message": "Login berhasil !"
             }), 200
         else:
-            print("❌ Login failed - wrong credentials")
             return jsonify({
                 "success": False,
-                "message": "Username atau password salah"
+                "message": "Salah , coba lagi"
             }), 401
             
     except Exception as e:
-        print(f"❌ Login error: {e}")
         return jsonify({
             "success": False,
             "message": str(e)
         }), 500
+
 
 @app.route('/issue-sertifikat', methods=['POST'])
 def issue_sertifikat():
