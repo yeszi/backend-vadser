@@ -6,10 +6,16 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
-# Load environment variables
 load_dotenv()
 
-# Konfigurasi dari .env
+print("=" * 60)
+print("🔍 ENVIRONMENT VARIABLES CHECK:")
+print(f"ADMIN_USERNAME from os: '{os.getenv('ADMIN_USERNAME')}'")
+print(f"ADMIN_PASSWORD from os: '{os.getenv('ADMIN_PASSWORD')}'")
+print(f"SUPABASE_URL from os: '{os.getenv('SUPABASE_URL')}'")
+print(f"SUPABASE_KEY from os: '{os.getenv('SUPABASE_KEY')[:20] if os.getenv('SUPABASE_KEY') else 'None'}'...")
+print("=" * 60)
+
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")  
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
