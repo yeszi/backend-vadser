@@ -25,25 +25,40 @@ class Blockchain:
     def load_data(self):
         """Tarik data terbaru dari Supabase Cloud"""
         try:
-
             response = supabase.table("sertifikat_digital").select("*").order("id").execute()
             self.chain = response.data if response.data else []
             
             if not self.chain:
+                print("Chain kosong, membuat genesis block...")
                 self.create_genesis_block()
+            else:
+                print(f"Chain terload: {len(self.chain)} blocks")
         except Exception as e:
             print(f"Error loading DB: {e}")
 
     def create_genesis_block(self):
-        """Membuat blok awal sistem (Blok 0)"""
-        genesis_data = {
-            "nama_event": "System Start",
-            "nama_peserta": "Genesis Block",
-            "previous_hash": "0",
-            "cert_hash": "0"
-        }
-        supabase.table("sertifikat_digital").insert(genesis_data).execute()
-        self.load_data()
+        """Membuat blok awal sistem (Blok 0) dengan 8 field lengkap"""
+        try:
+            genesis_data = {
+                "nama_event": "System Start",
+                "lokasi_nama": "System Location",
+                "latitude": 0.0,
+                "longitude": 0.0,
+                "waktu_mulai": "2024-01-01T00:00",
+                "waktu_selesai": "2024-01-01T00:00",
+                "nama_peserta": "Genesis Block",
+                "keterangan": "Genesis Block of VeriZh Chain",
+                "previous_hash": "0",
+                "cert_hash": "0"
+            }
+            
+            print("Membuat genesis block:", genesis_data)
+            result = supabase.table("sertifikat_digital").insert(genesis_data).execute()
+            print("Genesis block created:", result)
+            
+            self.load_data()
+        except Exception as e:
+            print(f"Error creating genesis block: {e}")
 
     def get_previous_hash(self):
         """Mengambil hash dari blok terakhir yang ada di database"""
@@ -51,34 +66,46 @@ class Blockchain:
 
     @staticmethod
     def calculate_hash(block_data):
-        """Menghash 6 Metadata + Previous Hash menggunakan SHA-256"""
+        """Menghash 8 Metadata + Previous Hash menggunakan SHA-256"""
         encoded_block = json.dumps(block_data, sort_keys=True).encode()
         return hashlib.sha256(encoded_block).hexdigest()
 
     def add_block(self, metadata):
-        """Proses pembuatan blok baru sesuai metadata dari Pak Hendra"""
-        prev_hash = self.get_previous_hash()
-        
-        block_content = {
-            "nama_event": metadata['nama_event'],
-            "lokasi_nama": metadata['lokasi_nama'],
-            "latitude": metadata['latitude'],
-            "longitude": metadata['longitude'],
-            "waktu_mulai": metadata['waktu_mulai'],
-            "keterangan": metadata['keterangan'], 
-            "nama_peserta": metadata['nama_peserta'],
-            "previous_hash": prev_hash
-        }
-        
-        current_hash = self.calculate_hash(block_content)
-        block_content['cert_hash'] = current_hash
-        
-        supabase.table("sertifikat_digital").insert(block_content).execute()
-        self.load_data() 
-        return current_hash
+        """Proses pembuatan blok baru dengan 8 field"""
+        try:
+            prev_hash = self.get_previous_hash()
+            
+            # Siapkan data blok dengan 8 field
+            block_content = {
+                "nama_event": metadata['nama_event'],
+                "lokasi_nama": metadata['lokasi_nama'],
+                "latitude": float(metadata['latitude']),  # Konversi ke float
+                "longitude": float(metadata['longitude']), # Konversi ke float
+                "waktu_mulai": metadata['waktu_mulai'],
+                "waktu_selesai": metadata['waktu_selesai'],
+                "nama_peserta": metadata['nama_peserta'],
+                "keterangan": metadata['keterangan'],
+                "previous_hash": prev_hash
+            }
+            
+            print("Block content:", block_content)
+            
+            # Hitung hash
+            current_hash = self.calculate_hash(block_content)
+            block_content['cert_hash'] = current_hash
+            
+            # Simpan ke Supabase
+            result = supabase.table("sertifikat_digital").insert(block_content).execute()
+            print("Block saved:", result)
+            
+            self.load_data() 
+            return current_hash
+            
+        except Exception as e:
+            print(f"Error adding block: {e}")
+            raise e
 
 blockchain = Blockchain()
-
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -89,17 +116,45 @@ def login():
 
 @app.route('/issue-sertifikat', methods=['POST'])
 def issue_sertifikat():
-    metadata = request.json
-    required = ['nama_event', 'lokasi_nama', 'latitude', 'longitude', 'waktu_mulai', 'keterangan', 'nama_peserta']
-    if not all(k in metadata for k in required):
-        return jsonify({"message": "Data metadata tidak lengkap!"}), 400
-    
-    new_hash = blockchain.add_block(metadata)
-    return jsonify({
-        "success": True, 
-        "hash": new_hash,
-        "message": "Sertifikat berhasil diamankan ke Blockchain"
-    }), 201
+    try:
+        metadata = request.json
+        print("Received data:", metadata)
+        
+        required = ['nama_event', 'lokasi_nama', 'latitude', 'longitude', 
+                   'waktu_mulai', 'waktu_selesai', 'nama_peserta', 'keterangan']
+        
+        # Cek kelengkapan data
+        missing = [field for field in required if field not in metadata]
+        if missing:
+            return jsonify({
+                "success": False, 
+                "message": f"Data tidak lengkap! Missing: {missing}"
+            }), 400
+        
+        # Validasi tipe data
+        try:
+            float(metadata['latitude'])
+            float(metadata['longitude'])
+        except ValueError:
+            return jsonify({
+                "success": False,
+                "message": "Latitude dan Longitude harus berupa angka"
+            }), 400
+        
+        new_hash = blockchain.add_block(metadata)
+        
+        return jsonify({
+            "success": True, 
+            "hash": new_hash,
+            "message": "Sertifikat berhasil diamankan ke Blockchain"
+        }), 201
+        
+    except Exception as e:
+        print(f"Error in issue_sertifikat: {e}")
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
 
 @app.route('/verify/<cert_hash>', methods=['GET'])
 def verify(cert_hash):
@@ -120,13 +175,40 @@ def verify(cert_hash):
 
 @app.route('/chain', methods=['GET'])
 def get_chain():
-    """Endpoint untuk melihat seluruh isi blockchain dalam format JSON"""
-    blockchain.load_data()
+    """Endpoint untuk melihat seluruh isi blockchain"""
+    try:
+        blockchain.load_data()
+        return jsonify({
+            "status": "success",
+            "length": len(blockchain.chain),
+            "chain": blockchain.chain
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+@app.route('/reset-chain', methods=['POST'])
+def reset_chain():
+    """RESET DARURAT - Hanya untuk testing!"""
+    try:
+        # Hapus semua data
+        supabase.table("sertifikat_digital").delete().neq("id", 0).execute()
+        # Buat genesis block baru
+        blockchain.chain = []
+        blockchain.create_genesis_block()
+        return jsonify({"success": True, "message": "Chain direset!"})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/', methods=['GET'])
+def home():
     return jsonify({
-        "status": "success",
-        "length": len(blockchain.chain),
-        "chain": blockchain.chain[::-1]
-    }), 200
+        "message": "VeriZh Chain API",
+        "status": "online",
+        "endpoints": ["/login", "/issue-sertifikat", "/verify/<hash>", "/chain", "/reset-chain"]
+    })
 
 if __name__ == '__main__':
     app.run(debug=True)
