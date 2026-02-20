@@ -33,9 +33,13 @@ except Exception as e:
     print(f"❌ Supabase initialization error: {e}")
     supabase = None
 
+# ✅ CORS UPDATED with new frontend URL
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:3000", "http://localhost:5173", "https://frontend-verizh.vercel.app"])
-
+CORS(app, origins=[
+    "http://localhost:3000", 
+    "http://localhost:5173", 
+    "https://vadser.vercel.app"  # FRONTEND BARU
+])
 
 def calculate_hash(block_data):
     """
@@ -449,6 +453,5 @@ def internal_error(error):
 if __name__ == '__main__':
     print("\n" + "="*50)
     print("✅ VeriZh Chain Backend Ready!")
-    print("🌐 Server running at: http://127.0.0.1:5000")
     print("="*50 + "\n")
     app.run(host='0.0.0.0', port=5000, debug=True)
