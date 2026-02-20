@@ -41,7 +41,7 @@ class Blockchain:
         try:
             genesis_data = {
                 "nama_event": "System Start",
-                "lokasi_nama": "System Location",
+                "nama_lokasi": "System Location",  # ← PERBAIKAN: nama_lokasi
                 "latitude": 0.0,
                 "longitude": 0.0,
                 "waktu_mulai": "2024-01-01T00:00",
@@ -75,12 +75,12 @@ class Blockchain:
         try:
             prev_hash = self.get_previous_hash()
             
-            # Siapkan data blok dengan 8 field
+            # PERBAIKAN PENTING: gunakan nama_lokasi, BUKAN lokasi_nama
             block_content = {
                 "nama_event": metadata['nama_event'],
-                "lokasi_nama": metadata['lokasi_nama'],
-                "latitude": float(metadata['latitude']),  # Konversi ke float
-                "longitude": float(metadata['longitude']), # Konversi ke float
+                "nama_lokasi": metadata['nama_lokasi'],  
+                "latitude": float(metadata['latitude']),
+                "longitude": float(metadata['longitude']),
                 "waktu_mulai": metadata['waktu_mulai'],
                 "waktu_selesai": metadata['waktu_selesai'],
                 "nama_peserta": metadata['nama_peserta'],
@@ -90,11 +90,9 @@ class Blockchain:
             
             print("Block content:", block_content)
             
-            # Hitung hash
             current_hash = self.calculate_hash(block_content)
             block_content['cert_hash'] = current_hash
             
-            # Simpan ke Supabase
             result = supabase.table("sertifikat_digital").insert(block_content).execute()
             print("Block saved:", result)
             
@@ -120,7 +118,8 @@ def issue_sertifikat():
         metadata = request.json
         print("Received data:", metadata)
         
-        required = ['nama_event', 'lokasi_nama', 'latitude', 'longitude', 
+        # PERBAIKAN: required fields dengan nama_lokasi
+        required = ['nama_event', 'nama_lokasi', 'latitude', 'longitude', 
                    'waktu_mulai', 'waktu_selesai', 'nama_peserta', 'keterangan']
         
         # Cek kelengkapan data
